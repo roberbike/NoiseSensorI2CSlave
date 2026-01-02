@@ -138,7 +138,7 @@ void NoiseSensorI2CSlave::onRequest() {
 
 void NoiseSensorI2CSlave::onReceive(int numBytes) {
     if (numBytes == 0) {
-        if (config.logLevel >= NoiseSensor::LOG_WARNING) {
+        if (config.logLevel >= NoiseSensor::LOG_INFO) {
             Serial.println("WARNING: Recibido comando I2C sin bytes");
         }
         return;
@@ -228,7 +228,7 @@ void NoiseSensorI2CSlave::onReceive(int numBytes) {
                     Serial.println("Ciclo reseteado por comando I2C");
                 }
             } else {
-                if (config.logLevel >= NoiseSensor::LOG_WARNING) {
+                if (config.logLevel >= NoiseSensor::LOG_INFO) {
                     Serial.println("WARNING: Intento de resetear ciclo que no está completo");
                 }
             }
@@ -236,7 +236,7 @@ void NoiseSensorI2CSlave::onReceive(int numBytes) {
             
         default:
             // Comando desconocido
-            if (config.logLevel >= NoiseSensor::LOG_WARNING) {
+            if (config.logLevel >= NoiseSensor::LOG_INFO) {
                 Serial.printf("WARNING: Comando I2C desconocido: 0x%02X\n", command);
             }
             break;
