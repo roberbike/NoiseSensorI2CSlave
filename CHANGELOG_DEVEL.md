@@ -40,6 +40,15 @@
 - Estructura `SensorIdentity` para respuesta de identificación
 - El maestro puede detectar y verificar el estado de múltiples sensores
 
+### 6. ✅ Ejemplo de Detección Automática (NUEVO)
+- Nuevo ejemplo `sensor_detection` para el maestro I2C
+- Escaneo automático de direcciones I2C (0x08 - 0x77)
+- Detección de sensores usando `CMD_PING`
+- Verificación de estado con `CMD_GET_READY`
+- Lectura de datos de múltiples sensores
+- Manejo de sensores no listos
+- Reintentos automáticos si no se detectan sensores
+
 ## Archivos Modificados
 
 1. `lib/NoiseSensorI2CSlave/NoiseSensorI2CSlave.h`
@@ -60,6 +69,13 @@
    - Agregada sección "Limitaciones"
    - Documentado método `isValid()`
    - Mejorada documentación de validación
+   - Documentados comandos `CMD_PING` y `CMD_GET_READY`
+   - Agregado ejemplo de detección automática
+
+4. `examples/sensor_detection/` (NUEVO)
+   - Ejemplo completo de detección automática de sensores
+   - Código bien documentado y comentado
+   - Manejo robusto de errores
 
 ## Correcciones Aplicadas
 
