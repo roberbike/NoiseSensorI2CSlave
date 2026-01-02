@@ -11,13 +11,13 @@
   ],
   "authors": [
     {
-      "name": "Tu Nombre",
-      "email": "tu@email.com"
+      "name": "Roberto Fernandez @roberbike",
+      "email": "roberbike@gmail.com"
     }
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/tu-usuario/ruido_i2c_slave"
+    "url": "https://github.com/roberbike/ruido_i2c_slave"
   },
   "license": "GPL-3.0-or-later",
   "frameworks": "arduino",
