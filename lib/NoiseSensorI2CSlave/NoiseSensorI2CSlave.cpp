@@ -274,8 +274,8 @@ void NoiseSensorI2CSlave::onReceive(int numBytes) {
             }
             break;
             
-        case CMD_PING:
-        case CMD_IDENTIFY: {
+        case CMD_PING:  // CMD_PING y CMD_IDENTIFY tienen el mismo valor (0x09), usar solo uno
+        {
             // Enviar información de identificación del sensor
             SensorIdentity identity;
             identity.sensorType = SENSOR_TYPE_NOISE;
