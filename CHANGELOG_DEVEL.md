@@ -30,6 +30,16 @@
 - Uso de constantes en lugar de valores mágicos en el código
 - Mejora la mantenibilidad y claridad del código
 
+### 5. ✅ Detección y Verificación de Estado para Maestro I2C (NUEVO)
+- Agregado comando `CMD_PING` / `CMD_IDENTIFY` (0x09) para identificación del sensor
+- Agregado comando `CMD_GET_READY` (0x0A) para verificar si está listo
+- Implementado método `isReady()` que verifica inicialización + ADC activo
+- Implementado método `checkADCSignal()` para verificar señal del micrófono
+- El sensor verifica que el ADC recibe señal antes de inicializarse completamente
+- Verificación periódica del ADC cada 5 segundos durante la operación
+- Estructura `SensorIdentity` para respuesta de identificación
+- El maestro puede detectar y verificar el estado de múltiples sensores
+
 ## Archivos Modificados
 
 1. `lib/NoiseSensorI2CSlave/NoiseSensorI2CSlave.h`
@@ -42,6 +52,9 @@
    - Mejorado manejo de errores en `onRequest()`
    - Mejorado manejo de errores en `onReceive()`
    - Agregado logging de errores y advertencias
+   - Implementado `isReady()` y `checkADCSignal()`
+   - Agregado manejo de comandos `CMD_PING` y `CMD_GET_READY`
+   - Verificación de señal ADC en `begin()` y periódicamente en `update()`
 
 3. `README.md`
    - Agregada sección "Limitaciones"
