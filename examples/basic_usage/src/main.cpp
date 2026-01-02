@@ -19,15 +19,10 @@
 #include <Arduino.h>
 #include "NoiseSensorI2CSlave.h"
 
-// Configuración básica del sensor
+// Configuración básica del sensor (usa valores por defecto)
 NoiseSensorI2CSlave::Config config;
-// Personalizar valores (los valores por defecto ya están configurados en la estructura)
-config.i2cAddress = 0x08;      // Dirección I2C del esclavo
-config.sdaPin = 8;             // Pin SDA para I2C
-config.sclPin = 10;            // Pin SCL para I2C
-config.adcPin = 4;             // Pin ADC para el sensor de ruido
-config.updateInterval = 1000;  // Actualizar datos cada segundo (1000ms)
-config.logLevel = NoiseSensor::LOG_INFO;  // Mostrar logs informativos
+// Los valores por defecto ya están configurados en la estructura Config
+// Si necesitas personalizar, puedes hacerlo en setup()
 
 // Crear instancia del sensor
 NoiseSensorI2CSlave sensor(config);
@@ -39,6 +34,14 @@ void setup() {
     
     Serial.println("=== Ejemplo Básico - NoiseSensor I2C Slave ===");
     Serial.println("Inicializando sensor...");
+    
+    // Opcional: Personalizar valores si es necesario
+    // config.i2cAddress = 0x08;      // Dirección I2C del esclavo
+    // config.sdaPin = 8;             // Pin SDA para I2C
+    // config.sclPin = 10;            // Pin SCL para I2C
+    // config.adcPin = 4;             // Pin ADC para el sensor de ruido
+    // config.updateInterval = 1000;  // Actualizar datos cada segundo (1000ms)
+    // config.logLevel = NoiseSensor::LOG_INFO;  // Mostrar logs informativos
     
     // Inicializar el sensor (configura I2C y el sensor de ruido)
     sensor.begin();

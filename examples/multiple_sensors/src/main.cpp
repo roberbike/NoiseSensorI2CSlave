@@ -17,21 +17,9 @@
 
 // Configuración del Sensor 1
 NoiseSensorI2CSlave::Config config1;
-config1.i2cAddress = 0x08;      // Primera dirección I2C
-config1.sdaPin = 8;
-config1.sclPin = 10;
-config1.adcPin = 4;
-config1.updateInterval = 1000;
-config1.logLevel = NoiseSensor::LOG_NONE;  // Sin logs para evitar confusión
 
 // Configuración del Sensor 2
 NoiseSensorI2CSlave::Config config2;
-config2.i2cAddress = 0x09;      // Segunda dirección I2C (diferente)
-config2.sdaPin = 8;            // Mismo bus I2C
-config2.sclPin = 10;
-config2.adcPin = 5;            // Diferente pin ADC
-config2.updateInterval = 1000;
-config2.logLevel = NoiseSensor::LOG_NONE;
 
 // Crear instancias de los sensores
 // NOTA: En la práctica, cada sensor estaría en un ESP32 diferente
@@ -42,6 +30,22 @@ NoiseSensorI2CSlave sensor1(config1);
 void setup() {
     Serial.begin(115200);
     delay(1000);
+    
+    // Configurar Sensor 1
+    config1.i2cAddress = 0x08;      // Primera dirección I2C
+    config1.sdaPin = 8;
+    config1.sclPin = 10;
+    config1.adcPin = 4;
+    config1.updateInterval = 1000;
+    config1.logLevel = NoiseSensor::LOG_NONE;  // Sin logs para evitar confusión
+    
+    // Configurar Sensor 2
+    config2.i2cAddress = 0x09;      // Segunda dirección I2C (diferente)
+    config2.sdaPin = 8;            // Mismo bus I2C
+    config2.sclPin = 10;
+    config2.adcPin = 5;            // Diferente pin ADC
+    config2.updateInterval = 1000;
+    config2.logLevel = NoiseSensor::LOG_NONE;
     
     Serial.println("=== Ejemplo: Múltiples Sensores I2C ===");
     Serial.println("NOTA: Este ejemplo requiere múltiples ESP32-C3");

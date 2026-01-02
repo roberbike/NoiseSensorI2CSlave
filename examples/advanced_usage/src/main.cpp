@@ -18,13 +18,6 @@
 
 // Configuración avanzada personalizada
 NoiseSensorI2CSlave::Config config;
-// Personalizar valores para uso avanzado
-config.i2cAddress = 0x08;      // Dirección I2C (puede cambiarse si hay múltiples sensores)
-config.sdaPin = 8;             // Pin SDA para I2C
-config.sclPin = 10;            // Pin SCL para I2C
-config.adcPin = 4;             // Pin ADC para el sensor de ruido
-config.updateInterval = 500;   // Actualizar cada 500ms (más frecuente que el básico)
-config.logLevel = NoiseSensor::LOG_NONE;  // Sin logs automáticos (control manual)
 
 // Crear instancia del sensor
 NoiseSensorI2CSlave sensor(config);
@@ -32,6 +25,14 @@ NoiseSensorI2CSlave sensor(config);
 void setup() {
     Serial.begin(115200);
     delay(1000);
+    
+    // Personalizar valores para uso avanzado
+    config.i2cAddress = 0x08;      // Dirección I2C (puede cambiarse si hay múltiples sensores)
+    config.sdaPin = 8;             // Pin SDA para I2C
+    config.sclPin = 10;            // Pin SCL para I2C
+    config.adcPin = 4;             // Pin ADC para el sensor de ruido
+    config.updateInterval = 500;   // Actualizar cada 500ms (más frecuente que el básico)
+    config.logLevel = NoiseSensor::LOG_NONE;  // Sin logs automáticos (control manual)
     
     Serial.println("=== Ejemplo Avanzado - NoiseSensor I2C Slave ===");
     Serial.println("Configuración personalizada:");
