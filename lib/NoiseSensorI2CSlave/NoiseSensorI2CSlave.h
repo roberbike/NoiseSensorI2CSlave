@@ -53,6 +53,11 @@ struct SensorIdentity {
  */
 class NoiseSensorI2CSlave {
 public:
+    // Constantes de versión (públicas para fácil acceso)
+    static constexpr uint8_t VERSION_MAJOR = 1;
+    static constexpr uint8_t VERSION_MINOR = 0;
+    static constexpr uint8_t SENSOR_TYPE_NOISE = 0x01;
+    
     /**
      * Configuración del esclavo I2C
      */
@@ -138,11 +143,6 @@ private:
     bool initialized;
     bool adcActive;
     unsigned long lastUpdate;
-    
-    // Constantes de identificación
-    static constexpr uint8_t SENSOR_TYPE_NOISE = 0x01;
-    static constexpr uint8_t VERSION_MAJOR = 1;
-    static constexpr uint8_t VERSION_MINOR = 0;
 
     // Callbacks I2C (deben ser estáticos o usar punteros)
     static NoiseSensorI2CSlave* instance;
