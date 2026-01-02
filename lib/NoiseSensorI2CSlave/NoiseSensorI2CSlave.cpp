@@ -5,7 +5,7 @@
 NoiseSensorI2CSlave* NoiseSensorI2CSlave::instance = nullptr;
 
 NoiseSensorI2CSlave::NoiseSensorI2CSlave(const Config& config) 
-    : config(config), dataReady(false), initialized(false), lastUpdate(0) {
+    : config(config), dataReady(false), initialized(false), adcActive(false), lastUpdate(0) {
     // Configurar NoiseSensor
     NoiseSensor::Config noiseConfig;
     noiseConfig.adcPin = config.adcPin;
@@ -54,11 +54,23 @@ void NoiseSensorI2CSlave::begin() {
     // Inicializar sensor de ruido
     noiseSensor.begin();
     
+    // Verificar que el ADC está recibiendo señal del micrófono
+    adcActive = checkADCSignal();
+    
+    if (!adcActive) {
+        if (config.logLevel >= NoiseSensor::LOG_ERROR) {
+            Serial.println("ERROR: No se detecta señal en el ADC. Verifica la conexión del micrófono.");
+        }
+        // No marcar como inicializado si no hay señal ADC
+        return;
+    }
+    
     // Marcar como inicializado solo si todo fue exitoso
     initialized = true;
     
     if (config.logLevel >= NoiseSensor::LOG_INFO) {
         Serial.println("Sensor de ruido inicializado");
+        Serial.println("ADC activo - Micrófono detectado");
         Serial.println("Esperando solicitudes I2C...");
         Serial.println();
     }
@@ -73,8 +85,18 @@ void NoiseSensorI2CSlave::update() {
     // Actualizar sensor de ruido
     noiseSensor.update();
     
-    // Actualizar datos cada intervalo configurado
+    // Verificar periódicamente que el ADC sigue activo (cada 5 segundos)
+    static unsigned long lastADCCheck = 0;
     unsigned long currentMillis = millis();
+    if (currentMillis - lastADCCheck >= 5000) {
+        lastADCCheck = currentMillis;
+        adcActive = checkADCSignal();
+        if (!adcActive && config.logLevel >= NoiseSensor::LOG_ERROR) {
+            Serial.println("WARNING: Se perdió la señal del ADC");
+        }
+    }
+    
+    // Actualizar datos cada intervalo configurado
     if (currentMillis - lastUpdate >= config.updateInterval) {
         lastUpdate = currentMillis;
         
@@ -252,6 +274,37 @@ void NoiseSensorI2CSlave::onReceive(int numBytes) {
             }
             break;
             
+        case CMD_PING:
+        case CMD_IDENTIFY: {
+            // Enviar información de identificación del sensor
+            SensorIdentity identity;
+            identity.sensorType = SENSOR_TYPE_NOISE;
+            identity.versionMajor = VERSION_MAJOR;
+            identity.versionMinor = VERSION_MINOR;
+            identity.status = 0;
+            if (initialized) identity.status |= 0x01;  // Bit 0: inicializado
+            if (adcActive) identity.status |= 0x02;   // Bit 1: ADC activo
+            if (dataReady) identity.status |= 0x04;   // Bit 2: datos listos
+            identity.i2cAddress = config.i2cAddress;
+            
+            size_t bytesWritten = Wire.write((uint8_t*)&identity, sizeof(identity));
+            if (bytesWritten != sizeof(identity) && config.logLevel >= NoiseSensor::LOG_ERROR) {
+                Serial.printf("ERROR: Error al escribir identificación en I2C (%d/%d bytes)\n", 
+                             bytesWritten, sizeof(identity));
+            }
+            break;
+        }
+            
+        case CMD_GET_READY: {
+            // Enviar estado de "ready" (1 byte: 0x01 = listo, 0x00 = no listo)
+            uint8_t ready = isReady() ? 0x01 : 0x00;
+            size_t bytesWritten = Wire.write(ready);
+            if (bytesWritten != 1 && config.logLevel >= NoiseSensor::LOG_ERROR) {
+                Serial.println("ERROR: Error al escribir estado ready en I2C");
+            }
+            break;
+        }
+            
         default:
             // Comando desconocido
             if (config.logLevel >= NoiseSensor::LOG_INFO) {
@@ -259,5 +312,33 @@ void NoiseSensorI2CSlave::onReceive(int numBytes) {
             }
             break;
     }
+}
+
+// Implementación de métodos públicos
+bool NoiseSensorI2CSlave::isReady() const {
+    // Está listo si está inicializado Y el ADC está activo
+    return initialized && adcActive;
+}
+
+// Implementación de método privado para verificar señal ADC
+bool NoiseSensorI2CSlave::checkADCSignal() {
+    // Leer varias muestras del ADC para verificar que hay señal
+    const int numSamples = 10;
+    int activeSamples = 0;
+    
+    for (int i = 0; i < numSamples; i++) {
+        // Leer directamente del ADC
+        int adcValue = analogRead(config.adcPin);
+        
+        // Considerar que hay señal si el valor está en un rango razonable
+        // (no en 0 o máximo, lo que indicaría problema de conexión)
+        if (adcValue > 50 && adcValue < 4000) {  // Rango razonable para ESP32-C3 ADC (0-4095)
+            activeSamples++;
+        }
+        delay(10);  // Pequeño delay entre muestras
+    }
+    
+    // Si al menos el 70% de las muestras muestran señal activa, consideramos que el ADC está activo
+    return (activeSamples * 100 / numSamples) >= 70;
 }
 

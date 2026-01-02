@@ -6,11 +6,11 @@
 #include "NoiseSensor.h"
 
 // Constantes para configuración I2C
-static constexpr uint8_t DEFAULT_I2C_ADDRESS = 0x88; //0x08
+static constexpr uint8_t DEFAULT_I2C_ADDRESS = 0x08; //0x08
 static constexpr uint8_t MIN_I2C_ADDRESS = 0x08;
 static constexpr uint8_t MAX_I2C_ADDRESS = 0x77;
 static constexpr unsigned long MIN_UPDATE_INTERVAL = 10; // ms
-static constexpr unsigned long DEFAULT_UPDATE_INTERVAL = 000; // ms 1000
+static constexpr unsigned long DEFAULT_UPDATE_INTERVAL = 1000; // ms 1000
 
 // Estructura de datos del sensor
 struct SensorData {
@@ -33,8 +33,20 @@ enum I2CCommand {
     CMD_GET_LEGAL = 0x05,     // Solicitar promedio legal
     CMD_GET_LEGAL_MAX = 0x06, // Solicitar máximo legal
     CMD_GET_STATUS = 0x07,    // Solicitar estado
-    CMD_RESET = 0x08          // Resetear ciclo
+    CMD_RESET = 0x08,         // Resetear ciclo
+    CMD_PING = 0x09,          // Identificación/detección del sensor (alias de CMD_IDENTIFY)
+    CMD_IDENTIFY = 0x09,      // Identificación y detección del sensor
+    CMD_GET_READY = 0x0A      // Verificar si está listo para enviar datos
 };
+
+// Estructura de identificación del sensor
+struct SensorIdentity {
+    uint8_t sensorType;       // Tipo de sensor (0x01 = Noise Sensor)
+    uint8_t versionMajor;     // Versión mayor
+    uint8_t versionMinor;     // Versión menor
+    uint8_t status;           // Estado: bit 0 = inicializado, bit 1 = ADC activo, bit 2 = datos listos
+    uint8_t i2cAddress;       // Dirección I2C del sensor
+} __attribute__((packed));
 
 /**
  * Clase para manejar un sensor de ruido como esclavo I2C
@@ -105,13 +117,32 @@ public:
      */
     bool isInitialized() const { return initialized; }
 
+    /**
+     * Verificar si el sensor está listo para enviar datos
+     * Verifica que esté inicializado y que el ADC esté recibiendo señal
+     * @return true si está listo para enviar datos
+     */
+    bool isReady() const;
+
+    /**
+     * Verificar si el ADC está recibiendo señal del micrófono
+     * @return true si hay señal activa en el ADC
+     */
+    bool isADCActive() const { return adcActive; }
+
 private:
     Config config;
     NoiseSensor noiseSensor;
     SensorData sensorData;
     bool dataReady;
     bool initialized;
+    bool adcActive;
     unsigned long lastUpdate;
+    
+    // Constantes de identificación
+    static constexpr uint8_t SENSOR_TYPE_NOISE = 0x01;
+    static constexpr uint8_t VERSION_MAJOR = 1;
+    static constexpr uint8_t VERSION_MINOR = 0;
 
     // Callbacks I2C (deben ser estáticos o usar punteros)
     static NoiseSensorI2CSlave* instance;
@@ -120,6 +151,9 @@ private:
     
     void onRequest();
     void onReceive(int numBytes);
+    
+    // Método privado para verificar señal ADC
+    bool checkADCSignal();
 };
 
 #endif // NOISE_SENSOR_I2C_SLAVE_H

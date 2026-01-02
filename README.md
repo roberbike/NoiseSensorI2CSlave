@@ -155,6 +155,8 @@ El maestro puede enviar los siguientes comandos:
 | `CMD_GET_LEGAL_MAX` | 0x06 | Obtener máximo legal |
 | `CMD_GET_STATUS` | 0x07 | Obtener estado (0x01 = datos listos) |
 | `CMD_RESET` | 0x08 | Resetear ciclo del sensor |
+| `CMD_PING` / `CMD_IDENTIFY` | 0x09 | Identificación del sensor (detecta tipo y versión) |
+| `CMD_GET_READY` | 0x0A | Verificar si está listo para enviar datos (0x01 = listo, 0x00 = no listo) |
 
 ### Estructura de Datos
 
