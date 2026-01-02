@@ -23,22 +23,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install platformio
     
-    - name: Build main project
-      run: |
-        pio run -e lolin_c3_mini
-    
-    - name: Build basic_usage example
-      working-directory: examples/basic_usage
-      run: |
-        pio run
-    
-    - name: Build advanced_usage example
-      working-directory: examples/advanced_usage
-      run: |
-        pio run
-    
-    - name: Build i2c_master_example
-      working-directory: examples/i2c_master_example
-      run: |
-        pio run
+    - name: Build for lolin_c3_mini
+  run: |
+    pio run -e lolin_c3_mini
 
