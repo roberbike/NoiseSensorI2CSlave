@@ -56,6 +56,15 @@
 - **Commit:** `88a7b96 - fix: Reemplazar LOG_WARNING por LOG_INFO`
 - **Estado:** ✅ Compila correctamente
 
+### Fix: Prevenir ejecución cuando begin() falla
+- **Problema:** Si `begin()` fallaba por validación, el código seguía ejecutándose en `update()` y callbacks I2C
+- **Solución:** 
+  - Agregada bandera `initialized` para rastrear estado de inicialización
+  - `update()` y callbacks I2C ahora verifican `initialized` antes de ejecutar
+  - Agregado método `isInitialized()` para verificar estado
+- **Commit:** `da440be - fix: Agregar verificación de inicialización`
+- **Estado:** ✅ Previene ejecución con errores de validación
+
 ## Pruebas Recomendadas
 
 1. **Validación de parámetros:**
