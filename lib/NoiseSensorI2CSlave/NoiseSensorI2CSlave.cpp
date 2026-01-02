@@ -322,23 +322,48 @@ bool NoiseSensorI2CSlave::isReady() const {
 
 // Implementación de método privado para verificar señal ADC
 bool NoiseSensorI2CSlave::checkADCSignal() {
-    // Leer varias muestras del ADC para verificar que hay señal
-    const int numSamples = 10;
-    int activeSamples = 0;
+    // Mejor estrategia: usar los datos del NoiseSensor en lugar de leer directamente el ADC
+    // Si el NoiseSensor está funcionando y generando datos, significa que el ADC está activo
+    
+    // Verificar que el NoiseSensor tiene datos válidos
+    const auto& measurements = noiseSensor.getMeasurements();
+    
+    // El ADC está activo si:
+    // 1. El sensor tiene datos (noise > 0 o hay variación en los valores)
+    // 2. Los valores no están todos en cero (lo que indicaría problema)
+    // 3. Hay variación en las lecturas (señal dinámica)
+    
+    // Leer algunas muestras rápidas para verificar variación
+    const int numSamples = 5;
+    int lastValue = 0;
+    bool hasVariation = false;
+    bool hasValidValues = false;
     
     for (int i = 0; i < numSamples; i++) {
-        // Leer directamente del ADC
         int adcValue = analogRead(config.adcPin);
         
-        // Considerar que hay señal si el valor está en un rango razonable
-        // (no en 0 o máximo, lo que indicaría problema de conexión)
-        if (adcValue > 50 && adcValue < 4000) {  // Rango razonable para ESP32-C3 ADC (0-4095)
-            activeSamples++;
+        // Verificar que no está en valores extremos que indicarían problema
+        // 0 o 4095 constantemente indicarían conexión abierta o cortocircuito
+        if (adcValue > 0 && adcValue < 4095) {
+            hasValidValues = true;
         }
-        delay(10);  // Pequeño delay entre muestras
+        
+        // Verificar variación (señal dinámica)
+        if (i > 0 && abs(adcValue - lastValue) > 5) {
+            hasVariation = true;
+        }
+        
+        lastValue = adcValue;
+        delay(5);  // Delay más corto para no bloquear tanto
     }
     
-    // Si al menos el 70% de las muestras muestran señal activa, consideramos que el ADC está activo
-    return (activeSamples * 100 / numSamples) >= 70;
+    // También verificar que el NoiseSensor tiene datos válidos
+    bool noiseSensorActive = (measurements.noise > 0.0 || 
+                              measurements.noiseAvg > 0.0 ||
+                              measurements.cycles > 0);
+    
+    // El ADC está activo si hay valores válidos Y (hay variación O el NoiseSensor tiene datos)
+    // Esto es más permisivo y evita falsos negativos
+    return hasValidValues && (hasVariation || noiseSensorActive);
 }
 
