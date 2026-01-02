@@ -50,10 +50,9 @@ Agrega la librería directamente desde GitHub en tu `platformio.ini`:
 ```ini
 lib_deps = 
     roberbike/NoiseSensor@^1.0.1
-    https://github.com/TU_USUARIO/NoiseSensorI2CSlave.git
+    https://github.com/roberbike/NoiseSensorI2CSlave.git
 ```
 
-Reemplaza `TU_USUARIO` con tu usuario de GitHub después de publicar el repositorio.
 
 ### Como Librería Local
 
@@ -186,6 +185,7 @@ struct SensorData {
 #define I2C_SLAVE_ADDRESS 0x08
 
 struct SensorData {
+    float noise;
     float noiseAvg;
     float noisePeak;
     float noiseMin;
