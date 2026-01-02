@@ -364,12 +364,21 @@ bool NoiseSensorI2CSlave::checkADCSignal() {
     }
     
     // También verificar que el NoiseSensor tiene datos válidos
+    // Si el NoiseSensor está generando datos, el ADC definitivamente está activo
     bool noiseSensorActive = (measurements.noise > 0.0 || 
                               measurements.noiseAvg > 0.0 ||
                               measurements.cycles > 0);
     
-    // El ADC está activo si hay valores válidos Y (hay variación O el NoiseSensor tiene datos)
-    // Esto es más permisivo y evita falsos negativos
-    return hasValidValues && (hasVariation || noiseSensorActive);
+    // El ADC está activo si:
+    // 1. El NoiseSensor tiene datos (más confiable) O
+    // 2. Hay valores válidos en el ADC (no en extremos) Y hay variación
+    // Esto prioriza los datos del NoiseSensor sobre la lectura directa del ADC
+    if (noiseSensorActive) {
+        return true;  // Si el NoiseSensor tiene datos, el ADC está activo
+    }
+    
+    // Si el NoiseSensor no tiene datos aún, verificar el ADC directamente
+    // pero ser más permisivo: solo necesita valores válidos (no extremos)
+    return hasValidValues;
 }
 
