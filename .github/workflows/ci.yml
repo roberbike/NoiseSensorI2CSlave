@@ -28,16 +28,16 @@ jobs:
         pio run -e lolin_c3_mini
     
     - name: Build basic_usage example
-      working-directory: examples/basic_usage
       run: |
+        cd examples/basic_usage
         pio run
     
     - name: Build advanced_usage example
-      working-directory: examples/advanced_usage
       run: |
+        cd examples/advanced_usage
         pio run
     
     - name: Build i2c_master_example
-      working-directory: examples/i2c_master_example
       run: |
+        cd examples/i2c_master_example
         pio run
