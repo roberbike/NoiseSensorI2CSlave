@@ -271,6 +271,19 @@ if (sensor.isDataReady()) {
 #### `getNoiseSensor()`
 Obtiene una referencia al objeto `NoiseSensor` interno para configuración avanzada.
 
+#### `isValid()`
+Valida la configuración actual del sensor.
+
+```cpp
+if (sensor.isValid()) {
+    // La configuración es válida
+    sensor.begin();
+} else {
+    // La configuración tiene errores
+    Serial.println("Configuración inválida");
+}
+```
+
 ## Ejemplos
 
 El proyecto incluye varios ejemplos completos en el directorio `examples/`:
@@ -377,12 +390,19 @@ Para desactivar los logs:
 config.logLevel = NoiseSensor::LOG_NONE;
 ```
 
+## Limitaciones
+
+- **Instancia única:** Solo se puede crear una instancia de `NoiseSensorI2CSlave` por programa debido a las limitaciones de los callbacks I2C estáticos de Arduino Wire. Si necesitas múltiples sensores, cada uno debe estar en un ESP32 diferente con su propia dirección I2C.
+- **Dirección I2C:** Debe estar entre 0x08 y 0x77 (rango válido para I2C)
+- **Intervalo de actualización:** Debe ser mayor que 0 ms
+
 ## Notas
 
-- Los datos se actualizan automáticamente cada segundo
+- Los datos se actualizan automáticamente cada segundo (o según el intervalo configurado)
 - El sensor mantiene sus propios ciclos internos (120 segundos por defecto)
 - Los datos enviados por I2C son siempre los más recientes disponibles
 - El maestro puede solicitar datos en cualquier momento
+- La validación de parámetros se realiza en `begin()` y se registran errores si el nivel de log lo permite
 
 ## Contribuir
 

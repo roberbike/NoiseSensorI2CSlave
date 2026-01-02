@@ -5,6 +5,13 @@
 #include <Wire.h>
 #include "NoiseSensor.h"
 
+// Constantes para configuración I2C
+static constexpr uint8_t DEFAULT_I2C_ADDRESS = 0x08;
+static constexpr uint8_t MIN_I2C_ADDRESS = 0x08;
+static constexpr uint8_t MAX_I2C_ADDRESS = 0x77;
+static constexpr unsigned long MIN_UPDATE_INTERVAL = 10; // ms
+static constexpr unsigned long DEFAULT_UPDATE_INTERVAL = 1000; // ms
+
 // Estructura de datos del sensor
 struct SensorData {
     float noise;
@@ -38,17 +45,20 @@ public:
      * Configuración del esclavo I2C
      */
     struct Config {
-        uint8_t i2cAddress = 0x08;      // Dirección I2C del esclavo
-        uint8_t sdaPin = 8;              // Pin SDA
-        uint8_t sclPin = 10;             // Pin SCL
-        uint8_t adcPin = 4;              // Pin ADC para el sensor
-        unsigned long updateInterval = 1000; // Intervalo de actualización en ms
+        uint8_t i2cAddress = DEFAULT_I2C_ADDRESS;      // Dirección I2C del esclavo
+        uint8_t sdaPin = 8;                            // Pin SDA
+        uint8_t sclPin = 10;                           // Pin SCL
+        uint8_t adcPin = 4;                            // Pin ADC para el sensor
+        unsigned long updateInterval = DEFAULT_UPDATE_INTERVAL; // Intervalo de actualización en ms
         NoiseSensor::LogLevel logLevel = NoiseSensor::LOG_INFO;
     };
 
     /**
      * Constructor
      * @param config Configuración del esclavo I2C
+     * 
+     * NOTA: Solo se puede crear una instancia de NoiseSensorI2CSlave por programa
+     * debido a las limitaciones de los callbacks I2C estáticos de Arduino Wire.
      */
     NoiseSensorI2CSlave(const Config& config);
 
@@ -79,6 +89,15 @@ public:
      * @return Referencia al objeto NoiseSensor
      */
     NoiseSensor& getNoiseSensor() { return noiseSensor; }
+
+    /**
+     * Validar la configuración actual
+     * @return true si la configuración es válida
+     */
+    bool isValid() const {
+        return (config.i2cAddress >= MIN_I2C_ADDRESS && config.i2cAddress <= MAX_I2C_ADDRESS) &&
+               (config.updateInterval >= MIN_UPDATE_INTERVAL);
+    }
 
 private:
     Config config;
