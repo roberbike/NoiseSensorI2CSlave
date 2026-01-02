@@ -364,6 +364,22 @@ Ejemplo conceptual que muestra cómo configurar múltiples sensores con diferent
 pio run -e multiple_sensors
 ```
 
+### 5. **sensor_detection** - Detección Automática de Sensores (Maestro)
+Ejemplo completo para el maestro I2C que muestra cómo detectar y verificar sensores automáticamente.
+
+**Características:**
+- Escaneo automático de direcciones I2C (0x08 - 0x77)
+- Detección de sensores usando `CMD_PING`
+- Verificación de estado con `CMD_GET_READY`
+- Lectura de datos de múltiples sensores
+- Manejo de sensores no listos
+- Reintentos automáticos si no se detectan sensores
+
+**Compilar:**
+```bash
+pio run -e sensor_detection
+```
+
 ### Ejecutar un Ejemplo Específico
 
 Para compilar y subir un ejemplo específico:
