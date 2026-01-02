@@ -85,14 +85,20 @@ void NoiseSensorI2CSlave::update() {
     // Actualizar sensor de ruido
     noiseSensor.update();
     
-    // Verificar periódicamente que el ADC sigue activo (cada 5 segundos)
+    // Verificar periódicamente que el ADC sigue activo (cada 10 segundos, menos frecuente)
+    // Solo verificar si ya estaba activo, para evitar falsos positivos
     static unsigned long lastADCCheck = 0;
     unsigned long currentMillis = millis();
-    if (currentMillis - lastADCCheck >= 5000) {
+    if (currentMillis - lastADCCheck >= 10000) {  // Cada 10 segundos en lugar de 5
         lastADCCheck = currentMillis;
+        bool previousState = adcActive;
         adcActive = checkADCSignal();
-        if (!adcActive && config.logLevel >= NoiseSensor::LOG_ERROR) {
+        
+        // Solo mostrar advertencia si cambió de activo a inactivo
+        if (!adcActive && previousState && config.logLevel >= NoiseSensor::LOG_INFO) {
             Serial.println("WARNING: Se perdió la señal del ADC");
+        } else if (adcActive && !previousState && config.logLevel >= NoiseSensor::LOG_INFO) {
+            Serial.println("INFO: Señal del ADC recuperada");
         }
     }
     
