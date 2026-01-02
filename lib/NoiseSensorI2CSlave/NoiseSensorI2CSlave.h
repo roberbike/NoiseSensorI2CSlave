@@ -6,11 +6,11 @@
 #include "NoiseSensor.h"
 
 // Constantes para configuración I2C
-static constexpr uint8_t DEFAULT_I2C_ADDRESS = 0x08;
+static constexpr uint8_t DEFAULT_I2C_ADDRESS = 0x88; //0x08
 static constexpr uint8_t MIN_I2C_ADDRESS = 0x08;
 static constexpr uint8_t MAX_I2C_ADDRESS = 0x77;
 static constexpr unsigned long MIN_UPDATE_INTERVAL = 10; // ms
-static constexpr unsigned long DEFAULT_UPDATE_INTERVAL = 1000; // ms
+static constexpr unsigned long DEFAULT_UPDATE_INTERVAL = 000; // ms 1000
 
 // Estructura de datos del sensor
 struct SensorData {
@@ -99,11 +99,18 @@ public:
                (config.updateInterval >= MIN_UPDATE_INTERVAL);
     }
 
+    /**
+     * Verificar si el sensor está inicializado correctamente
+     * @return true si el sensor está inicializado y listo para usar
+     */
+    bool isInitialized() const { return initialized; }
+
 private:
     Config config;
     NoiseSensor noiseSensor;
     SensorData sensorData;
     bool dataReady;
+    bool initialized;
     unsigned long lastUpdate;
 
     // Callbacks I2C (deben ser estáticos o usar punteros)

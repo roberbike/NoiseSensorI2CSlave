@@ -5,7 +5,7 @@
 NoiseSensorI2CSlave* NoiseSensorI2CSlave::instance = nullptr;
 
 NoiseSensorI2CSlave::NoiseSensorI2CSlave(const Config& config) 
-    : config(config), dataReady(false), lastUpdate(0) {
+    : config(config), dataReady(false), initialized(false), lastUpdate(0) {
     // Configurar NoiseSensor
     NoiseSensor::Config noiseConfig;
     noiseConfig.adcPin = config.adcPin;
@@ -54,6 +54,9 @@ void NoiseSensorI2CSlave::begin() {
     // Inicializar sensor de ruido
     noiseSensor.begin();
     
+    // Marcar como inicializado solo si todo fue exitoso
+    initialized = true;
+    
     if (config.logLevel >= NoiseSensor::LOG_INFO) {
         Serial.println("Sensor de ruido inicializado");
         Serial.println("Esperando solicitudes I2C...");
@@ -62,6 +65,11 @@ void NoiseSensorI2CSlave::begin() {
 }
 
 void NoiseSensorI2CSlave::update() {
+    // No hacer nada si no está inicializado
+    if (!initialized) {
+        return;
+    }
+    
     // Actualizar sensor de ruido
     noiseSensor.update();
     
@@ -123,6 +131,11 @@ void NoiseSensorI2CSlave::onReceiveStatic(int numBytes) {
 
 // Implementación de los callbacks
 void NoiseSensorI2CSlave::onRequest() {
+    // No responder si no está inicializado
+    if (!initialized) {
+        return;
+    }
+    
     // El maestro está solicitando datos
     // Enviamos los datos más recientes
     size_t bytesWritten = Wire.write((uint8_t*)&sensorData, sizeof(sensorData));
@@ -137,6 +150,11 @@ void NoiseSensorI2CSlave::onRequest() {
 }
 
 void NoiseSensorI2CSlave::onReceive(int numBytes) {
+    // No procesar si no está inicializado
+    if (!initialized) {
+        return;
+    }
+    
     if (numBytes == 0) {
         if (config.logLevel >= NoiseSensor::LOG_INFO) {
             Serial.println("WARNING: Recibido comando I2C sin bytes");

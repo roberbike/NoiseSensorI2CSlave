@@ -284,6 +284,22 @@ if (sensor.isValid()) {
 }
 ```
 
+#### `isInitialized()`
+Verifica si el sensor está inicializado correctamente.
+
+```cpp
+sensor.begin();
+if (sensor.isInitialized()) {
+    // El sensor está listo para usar
+    Serial.println("Sensor inicializado correctamente");
+} else {
+    // Hubo un error en la inicialización
+    Serial.println("Error: Sensor no inicializado");
+}
+```
+
+**Nota:** Si `begin()` falla por validación de parámetros, el sensor no se inicializará y `update()` no hará nada hasta que se corrija la configuración y se llame a `begin()` nuevamente.
+
 ## Ejemplos
 
 El proyecto incluye varios ejemplos completos en el directorio `examples/`:
