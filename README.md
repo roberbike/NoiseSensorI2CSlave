@@ -15,6 +15,7 @@ Librería para ESP32 que convierte un sensor de ruido en un dispositivo esclavo 
 - ✅ Envía datos estructurados por I2C
 - ✅ Actualización automática de datos configurable
 - ✅ API simple y fácil de usar
+- ✅ I2C estable en ESP32-C3 (callbacks mínimos, `IRAM_ATTR`, respuesta siempre en `onRequest()`)
 
 ## Hardware Requerido
 
@@ -25,6 +26,8 @@ Librería para ESP32 que convierte un sensor de ruido en un dispositivo esclavo 
   - SCL: GPIO 10
   - GND: Común
   - VCC: 3.3V
+
+> Nota importante: Asegúrate de que el bus I2C tiene **pull-ups** en SDA/SCL (típicamente 4.7k–10k a 3.3V) y que ambos ESP32 comparten **GND**.
 
 ## Conexiones
 
@@ -78,22 +81,23 @@ lib_deps =
 #include <Arduino.h>
 #include "NoiseSensorI2CSlave.h"
 
-// Configuración del sensor (usa valores por defecto o personaliza)
+// Crear instancia con configuración por defecto
 NoiseSensorI2CSlave::Config config;
-config.i2cAddress = 0x08;      // Dirección I2C
-config.sdaPin = 8;             // Pin SDA
-config.sclPin = 10;            // Pin SCL
-config.adcPin = 4;             // Pin ADC
-config.updateInterval = 1000;   // Actualizar cada segundo
-config.logLevel = NoiseSensor::LOG_INFO;
-
-// Crear instancia
 NoiseSensorI2CSlave sensor(config);
 
 void setup() {
     Serial.begin(115200);
     delay(1000);
     
+    // Personaliza la configuración en setup() y aplícala ANTES de begin()
+    config.i2cAddress = 0x08;       // Dirección I2C
+    config.sdaPin = 8;              // Pin SDA (ESP32-C3)
+    config.sclPin = 10;             // Pin SCL (ESP32-C3)
+    config.adcPin = 4;              // Pin ADC (ESP32-C3: GPIO0-4)
+    config.updateInterval = 1000;   // Actualizar cada segundo
+    config.logLevel = NoiseSensor::LOG_INFO;
+    sensor.setConfig(config);
+
     // Inicializar el sensor
     sensor.begin();
 }
@@ -108,16 +112,21 @@ void loop() {
 ### Configuración Avanzada
 
 ```cpp
-// Configuración personalizada
 NoiseSensorI2CSlave::Config config;
-config.i2cAddress = 0x08;      // Dirección I2C personalizada
-config.sdaPin = 8;             // Pin SDA
-config.sclPin = 10;            // Pin SCL
-config.adcPin = 4;             // Pin ADC
-config.updateInterval = 500;   // Actualizar cada 500ms
-config.logLevel = NoiseSensor::LOG_NONE;  // Sin logs
-
 NoiseSensorI2CSlave sensor(config);
+
+void setup() {
+    // Configuración personalizada (aplicar antes de begin)
+    config.i2cAddress = 0x08;
+    config.sdaPin = 8;
+    config.sclPin = 10;
+    config.adcPin = 4;
+    config.updateInterval = 500;
+    config.logLevel = NoiseSensor::LOG_NONE;
+    sensor.setConfig(config);
+
+    sensor.begin();
+}
 
 // Acceder a los datos
 if (sensor.isDataReady()) {
@@ -199,7 +208,8 @@ struct SensorData {
 
 void setup() {
     Serial.begin(115200);
-    Wire.begin(); // Maestro I2C
+    Wire.setBufferSize(64);
+    Wire.begin(); // Maestro I2C (o Wire.begin(SDA, SCL) si usas pines personalizados)
     delay(1000);
 }
 
@@ -207,7 +217,8 @@ void loop() {
     // Solicitar todos los datos
     Wire.beginTransmission(I2C_SLAVE_ADDRESS);
     Wire.write(0x01); // CMD_GET_DATA
-    Wire.endTransmission();
+    Wire.endTransmission();   // STOP obligatorio (más estable para ESP32-C3)
+    delayMicroseconds(200);
     
     // Leer datos
     Wire.requestFrom(I2C_SLAVE_ADDRESS, sizeof(SensorData));
@@ -233,7 +244,8 @@ void loop() {
 // Solicitar solo el promedio
 Wire.beginTransmission(I2C_SLAVE_ADDRESS);
 Wire.write(0x02); // CMD_GET_AVG
-Wire.endTransmission();
+Wire.endTransmission();   // STOP obligatorio (más estable para ESP32-C3)
+delayMicroseconds(200);
 
 Wire.requestFrom(I2C_SLAVE_ADDRESS, sizeof(float));
 if (Wire.available() >= sizeof(float)) {
@@ -428,7 +440,63 @@ config.logLevel = NoiseSensor::LOG_NONE;
 
 - **Instancia única:** Solo se puede crear una instancia de `NoiseSensorI2CSlave` por programa debido a las limitaciones de los callbacks I2C estáticos de Arduino Wire. Si necesitas múltiples sensores, cada uno debe estar en un ESP32 diferente con su propia dirección I2C.
 - **Dirección I2C:** Debe estar entre 0x08 y 0x77 (rango válido para I2C)
-- **Intervalo de actualización:** Debe ser mayor que 0 ms
+- **Intervalo de actualización:** Debe ser >= 10 ms
+- **ADC (ESP32-C3):** `adcPin` debe estar en GPIO 0–4 (ADC1)
+
+## Notas de compatibilidad ESP32-C3 (I2C esclavo)
+
+- El esclavo responde **siempre** desde `onRequest()` (aunque no haya datos listos devuelve 1 byte `0x00`) para evitar bloqueos del bus.
+- Los callbacks I2C son **mínimos** y marcados con `IRAM_ATTR` (sin `Serial`, sin `delay`, sin cálculos pesados).
+- El patrón más estable en el maestro es **comando → STOP → pequeña espera → `requestFrom()`**.
+- Internamente, el esclavo se inicializa con `Wire.setBufferSize(64)` y `Wire.begin(slaveAddr, sda, scl, 100000)` (firma de Arduino-ESP32).
+
+## ✅ Checklist de diagnóstico (si el I2C no funciona o el scanner no detecta el esclavo)
+
+### Hardware (lo más común)
+
+- **GND común**: maestro y esclavo deben compartir **GND**.
+- **Pull-ups en SDA/SCL**: 4.7k–10k a **3.3V** (si tu placa ya trae pull-ups, no dupliques demasiadas).
+- **Voltaje**: ambos a **3.3V** (evita 5V en I2C).
+- **Cableado**:
+  - SDA (maestro) ↔ SDA (esclavo)
+  - SCL (maestro) ↔ SCL (esclavo)
+- **Longitud de cables**: prueba primero con cables cortos.
+- **Dirección I2C**: confirma que el esclavo está en `0x08` (o la que hayas configurado).
+
+### Configuración de pines
+
+- **Pines correctos en cada placa**:
+  - En el **maestro**, usa `Wire.begin(SDA, SCL)` si no son los pines por defecto.
+  - En el **esclavo (ESP32‑C3)**, confirma que `config.sdaPin`/`config.sclPin` son los que realmente estás cableando.
+- **ESP32‑C3 ADC**: `adcPin` debe ser **GPIO0–GPIO4** (ADC1). Si no, `begin()` fallará por validación.
+
+### Patrón de comunicación (crítico en ESP32‑C3 slave)
+
+- **Siempre**:
+  - `Wire.beginTransmission(addr);`
+  - `Wire.write(COMANDO);`
+  - `Wire.endTransmission();`  **(STOP obligatorio)**
+  - `delayMicroseconds(200);`
+  - `Wire.requestFrom(addr, N);`
+- Evita “repeated start” implícitos/extraños: si notas fallos intermitentes, aumenta la espera a **500–1000 µs**.
+
+### Buffer / tamaño de respuesta
+
+- Asegura `Wire.setBufferSize(64)` en el **maestro** y en el **esclavo**.
+- No pidas más bytes de los que esperas y verifica `bytesReceived` antes de `readBytes()`.
+
+### Señales de que el esclavo no está respondiendo
+
+- Si el scanner no ve nada:
+  - Revisa primero **pull-ups** y **GND común**.
+  - Verifica que el esclavo está realmente en modo esclavo (`Wire.begin(slaveAddr, sda, scl, freq)`).
+- Si el bus “se cuelga”:
+  - En ESP32‑C3, `onRequest()` debe escribir **siempre** al menos 1 byte.
+  - Evita `Serial`/`delay` dentro de callbacks I2C.
+
+### Prueba mínima recomendada
+
+- Ejecuta `examples/sensor_detection` en el maestro: escanea, detecta por `CMD_PING` y valida `CMD_GET_READY`.
 
 ## Notas
 

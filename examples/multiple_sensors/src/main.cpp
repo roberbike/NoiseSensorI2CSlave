@@ -18,14 +18,13 @@
 // Configuración del Sensor 1
 NoiseSensorI2CSlave::Config config1;
 
-// Configuración del Sensor 2
+// Configuración del Sensor 2 (conceptual)
 NoiseSensorI2CSlave::Config config2;
 
-// Crear instancias de los sensores
-// NOTA: En la práctica, cada sensor estaría en un ESP32 diferente
-// Este ejemplo es solo para mostrar la configuración
+// Crear instancia del sensor
+// IMPORTANTE: La librería solo permite UNA instancia por programa (limitación de Wire callbacks).
+// Para múltiples sensores, usa múltiples ESP32 (cada uno con su dirección I2C).
 NoiseSensorI2CSlave sensor1(config1);
-// NoiseSensorI2CSlave sensor2(config2);  // Descomentar si tienes hardware adicional
 
 void setup() {
     Serial.begin(115200);
@@ -38,12 +37,15 @@ void setup() {
     config1.adcPin = 4;
     config1.updateInterval = 1000;
     config1.logLevel = NoiseSensor::LOG_NONE;  // Sin logs para evitar confusión
+
+    // Aplicar configuración al sensor antes de begin()
+    sensor1.setConfig(config1);
     
     // Configurar Sensor 2
     config2.i2cAddress = 0x09;      // Segunda dirección I2C (diferente)
     config2.sdaPin = 8;            // Mismo bus I2C
     config2.sclPin = 10;
-    config2.adcPin = 5;            // Diferente pin ADC
+    config2.adcPin = 4;            // ADC válido en ESP32-C3 (GPIO0-4). Ejemplo conceptual.
     config2.updateInterval = 1000;
     config2.logLevel = NoiseSensor::LOG_NONE;
     
@@ -56,9 +58,8 @@ void setup() {
     Serial.println("Inicializando Sensor 1 (dirección 0x08)...");
     sensor1.begin();
     
-    // Si tuvieras un segundo ESP32, inicializarías sensor2 aquí
-    // Serial.println("Inicializando Sensor 2 (dirección 0x09)...");
-    // sensor2.begin();
+    // Si tuvieras un segundo ESP32 con la misma librería, inicializarías ese OTRO dispositivo
+    // con config2 (dirección 0x09). No es posible crear sensor2 en el mismo firmware.
     
     Serial.println("Sensores listos");
     Serial.println();

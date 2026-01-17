@@ -46,6 +46,9 @@ bool requestAllData() {
         Serial.println("Error: No se pudo comunicar con el esclavo");
         return false;
     }
+
+    // ESP32-C3 (esclavo) suele ser más estable con STOP + pequeña espera antes del requestFrom()
+    delayMicroseconds(200);
     
     // Solicitar los datos
     uint8_t bytesReceived = Wire.requestFrom(I2C_SLAVE_ADDRESS, sizeof(SensorData));
@@ -69,6 +72,8 @@ float requestFloatValue(I2CCommand cmd) {
         Serial.println("Error: No se pudo comunicar con el esclavo");
         return 0.0;
     }
+
+    delayMicroseconds(200);
     
     Wire.requestFrom(I2C_SLAVE_ADDRESS, sizeof(float));
     if (Wire.available() < sizeof(float)) {
@@ -87,6 +92,8 @@ bool checkSlaveStatus() {
     if (Wire.endTransmission() != 0) {
         return false;
     }
+
+    delayMicroseconds(200);
     
     Wire.requestFrom(I2C_SLAVE_ADDRESS, 1);
     if (Wire.available() < 1) {
@@ -103,8 +110,12 @@ void setup() {
     
     Serial.println("=== ESP32 I2C Master - Noise Sensor Reader ===");
     
+    // Limitar el tamaño del buffer I2C a 64 bytes
+    Wire.setBufferSize(64);
+
     // Inicializar I2C como maestro
-    Wire.begin();
+    // IMPORTANTE: Ajusta pines si tu placa no usa los pines por defecto
+    Wire.begin(4, 5);
     // Opcional: configurar velocidad I2C (por defecto 100kHz)
     // Wire.setClock(100000);  // 100kHz
     // Wire.setClock(400000);  // 400kHz (Fast Mode)

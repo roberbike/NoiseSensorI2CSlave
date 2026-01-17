@@ -42,6 +42,10 @@ void setup() {
     // config.adcPin = 4;             // Pin ADC para el sensor de ruido
     // config.updateInterval = 1000;  // Actualizar datos cada segundo (1000ms)
     // config.logLevel = NoiseSensor::LOG_INFO;  // Mostrar logs informativos
+
+    // Si modificas config aquí, aplícalo antes de begin():
+    // (el sensor toma una copia interna de la configuración)
+    // sensor.setConfig(config);
     
     // Inicializar el sensor (configura I2C y el sensor de ruido)
     sensor.begin();

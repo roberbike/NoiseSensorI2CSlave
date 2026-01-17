@@ -1,11 +1,21 @@
 #include "NoiseSensorI2CSlave.h"
 #include <cstring>
+#if defined(ARDUINO_ARCH_ESP32)
+#include "soc/soc_caps.h"
+#endif
 
 // Instancia estática para los callbacks
 NoiseSensorI2CSlave* NoiseSensorI2CSlave::instance = nullptr;
 
 NoiseSensorI2CSlave::NoiseSensorI2CSlave(const Config& config) 
-    : config(config), dataReady(false), initialized(false), adcActive(false), lastUpdate(0) {
+    : config(config),
+      dataReady(false),
+      initialized(false),
+      adcActive(false),
+      lastUpdate(0),
+      instanceOwner(false),
+      lastCommand(CMD_GET_STATUS),
+      pendingReset(false) {
     // Configurar NoiseSensor
     NoiseSensor::Config noiseConfig;
     noiseConfig.adcPin = config.adcPin;
@@ -15,17 +25,39 @@ NoiseSensorI2CSlave::NoiseSensorI2CSlave(const Config& config)
     // Inicializar estructura de datos
     memset(&sensorData, 0, sizeof(sensorData));
     
-    // Establecer instancia para callbacks estáticos
-    instance = this;
+    // Establecer instancia para callbacks estáticos (solo una instancia permitida)
+    if (instance == nullptr) {
+        instance = this;
+        instanceOwner = true;
+    }
 }
 
 void NoiseSensorI2CSlave::begin() {
+    if (!instanceOwner) {
+        if (config.logLevel >= NoiseSensor::LOG_ERROR) {
+            Serial.println("ERROR: Solo se permite una instancia de NoiseSensorI2CSlave por programa.");
+        }
+        return;
+    }
+
     // Validar configuración usando el método isValid()
     if (!isValid()) {
         if (config.logLevel >= NoiseSensor::LOG_ERROR) {
             if (config.i2cAddress < MIN_I2C_ADDRESS || config.i2cAddress > MAX_I2C_ADDRESS) {
                 Serial.printf("ERROR: Dirección I2C inválida (0x%02X). Debe estar entre 0x%02X y 0x%02X\n", 
                               config.i2cAddress, MIN_I2C_ADDRESS, MAX_I2C_ADDRESS);
+            }
+            if (!isValidGpioPin(config.sdaPin)) {
+                Serial.printf("ERROR: Pin SDA inválido (%d).\n", config.sdaPin);
+            }
+            if (!isValidGpioPin(config.sclPin)) {
+                Serial.printf("ERROR: Pin SCL inválido (%d).\n", config.sclPin);
+            }
+            if (!isValidAdcPin(config.adcPin)) {
+                Serial.printf("ERROR: Pin ADC inválido (%d) para esta plataforma.\n", config.adcPin);
+            }
+            if (config.sdaPin == config.sclPin) {
+                Serial.println("ERROR: SDA y SCL no pueden usar el mismo pin.");
             }
             if (config.updateInterval < MIN_UPDATE_INTERVAL) {
                 Serial.printf("ERROR: Intervalo de actualización inválido (%lu ms). Debe ser >= %lu ms\n", 
@@ -42,8 +74,12 @@ void NoiseSensorI2CSlave::begin() {
         Serial.printf("ADC Pin: %d\n", config.adcPin);
     }
     
+    // Configurar tamaño de buffer I2C (debe hacerse antes de begin() para afectar I2C_BUFFER_LENGTH)
+    Wire.setBufferSize(64);
+
     // Configurar I2C como esclavo
-    Wire.begin(config.i2cAddress, config.sdaPin, config.sclPin);
+    // Firma Arduino-ESP32: begin(uint8_t slaveAddr, int sda, int scl, uint32_t frequency)
+    Wire.begin(config.i2cAddress, config.sdaPin, config.sclPin, 100000);
     Wire.onRequest(onRequestStatic);  // Callback cuando el maestro solicita datos
     Wire.onReceive(onReceiveStatic);  // Callback cuando el maestro envía datos
     
@@ -80,6 +116,12 @@ void NoiseSensorI2CSlave::update() {
     // No hacer nada si no está inicializado
     if (!initialized) {
         return;
+    }
+
+    // Procesar acciones pedidas por I2C fuera del callback (contexto no crítico)
+    if (pendingReset) {
+        pendingReset = false;
+        noiseSensor.resetCycle();
     }
     
     // Actualizar sensor de ruido
@@ -144,14 +186,14 @@ void NoiseSensorI2CSlave::update() {
     }
 }
 
-// Callbacks estáticos que redirigen a la instancia
-void NoiseSensorI2CSlave::onRequestStatic() {
+// Callbacks estáticos que redirigen a la instancia (deben ser mínimos)
+void IRAM_ATTR NoiseSensorI2CSlave::onRequestStatic() {
     if (instance != nullptr) {
         instance->onRequest();
     }
 }
 
-void NoiseSensorI2CSlave::onReceiveStatic(int numBytes) {
+void IRAM_ATTR NoiseSensorI2CSlave::onReceiveStatic(int numBytes) {
     if (instance != nullptr) {
         instance->onReceive(numBytes);
     }
@@ -159,165 +201,132 @@ void NoiseSensorI2CSlave::onReceiveStatic(int numBytes) {
 
 // Implementación de los callbacks
 void NoiseSensorI2CSlave::onRequest() {
-    // No responder si no está inicializado
-    if (!initialized) {
-        return;
-    }
-    
-    // El maestro está solicitando datos
-    // Enviamos los datos más recientes
-    size_t bytesWritten = Wire.write((uint8_t*)&sensorData, sizeof(sensorData));
-    
-    // Verificar que se escribieron todos los bytes
-    if (bytesWritten != sizeof(sensorData)) {
-        if (config.logLevel >= NoiseSensor::LOG_ERROR) {
-            Serial.printf("ERROR: Solo se escribieron %d de %d bytes en I2C\n", 
-                          bytesWritten, sizeof(sensorData));
-        }
-    }
-}
+    // IMPORTANTE (ESP32-C3): onRequest() debe escribir SIEMPRE al menos 1 byte
+    // y debe ser lo más corto posible (sin Serial/delay/cálculos).
 
-void NoiseSensorI2CSlave::onReceive(int numBytes) {
-    // No procesar si no está inicializado
+    // Si no está listo, devolver 1 byte 0x00 para evitar colgar el bus.
     if (!initialized) {
+        uint8_t zero = 0x00;
+        Wire.write(&zero, 1);
         return;
     }
-    
-    if (numBytes == 0) {
-        if (config.logLevel >= NoiseSensor::LOG_INFO) {
-            Serial.println("WARNING: Recibido comando I2C sin bytes");
-        }
-        return;
-    }
-    
-    // Verificar que hay datos disponibles
-    if (!Wire.available()) {
-        if (config.logLevel >= NoiseSensor::LOG_ERROR) {
-            Serial.println("ERROR: No hay datos disponibles en I2C");
-        }
-        return;
-    }
-    
-    uint8_t command = Wire.read();
-    
-    // Verificar que se leyó el comando correctamente
-    if (numBytes < 1) {
-        if (config.logLevel >= NoiseSensor::LOG_ERROR) {
-            Serial.println("ERROR: No se pudo leer el comando I2C");
-        }
-        return;
-    }
-    
-    switch (command) {
+
+    uint8_t cmd = lastCommand;
+
+    switch (cmd) {
         case CMD_GET_DATA:
-            // Los datos se enviarán en onRequest()
-            break;
-            
-        case CMD_GET_AVG: {
-            size_t bytesWritten = Wire.write((uint8_t*)&sensorData.noiseAvg, sizeof(float));
-            if (bytesWritten != sizeof(float) && config.logLevel >= NoiseSensor::LOG_ERROR) {
-                Serial.printf("ERROR: Error al escribir promedio en I2C (%d/%d bytes)\n", 
-                             bytesWritten, sizeof(float));
+            if (!dataReady) {
+                uint8_t zero = 0x00;
+                Wire.write(&zero, 1);
+                return;
             }
-            break;
-        }
-            
-        case CMD_GET_PEAK: {
-            size_t bytesWritten = Wire.write((uint8_t*)&sensorData.noisePeak, sizeof(float));
-            if (bytesWritten != sizeof(float) && config.logLevel >= NoiseSensor::LOG_ERROR) {
-                Serial.printf("ERROR: Error al escribir pico en I2C (%d/%d bytes)\n", 
-                             bytesWritten, sizeof(float));
-            }
-            break;
-        }
-            
-        case CMD_GET_MIN: {
-            size_t bytesWritten = Wire.write((uint8_t*)&sensorData.noiseMin, sizeof(float));
-            if (bytesWritten != sizeof(float) && config.logLevel >= NoiseSensor::LOG_ERROR) {
-                Serial.printf("ERROR: Error al escribir mínimo en I2C (%d/%d bytes)\n", 
-                             bytesWritten, sizeof(float));
-            }
-            break;
-        }
-            
-        case CMD_GET_LEGAL: {
-            size_t bytesWritten = Wire.write((uint8_t*)&sensorData.noiseAvgLegal, sizeof(float));
-            if (bytesWritten != sizeof(float) && config.logLevel >= NoiseSensor::LOG_ERROR) {
-                Serial.printf("ERROR: Error al escribir promedio legal en I2C (%d/%d bytes)\n", 
-                             bytesWritten, sizeof(float));
-            }
-            break;
-        }
-            
-        case CMD_GET_LEGAL_MAX: {
-            size_t bytesWritten = Wire.write((uint8_t*)&sensorData.noiseAvgLegalMax, sizeof(float));
-            if (bytesWritten != sizeof(float) && config.logLevel >= NoiseSensor::LOG_ERROR) {
-                Serial.printf("ERROR: Error al escribir máximo legal en I2C (%d/%d bytes)\n", 
-                             bytesWritten, sizeof(float));
-            }
-            break;
-        }
-            
+            Wire.write((uint8_t*)&sensorData, sizeof(sensorData));
+            return;
+
+        case CMD_GET_AVG:
+            Wire.write((uint8_t*)&sensorData.noiseAvg, sizeof(float));
+            return;
+
+        case CMD_GET_PEAK:
+            Wire.write((uint8_t*)&sensorData.noisePeak, sizeof(float));
+            return;
+
+        case CMD_GET_MIN:
+            Wire.write((uint8_t*)&sensorData.noiseMin, sizeof(float));
+            return;
+
+        case CMD_GET_LEGAL:
+            Wire.write((uint8_t*)&sensorData.noiseAvgLegal, sizeof(float));
+            return;
+
+        case CMD_GET_LEGAL_MAX:
+            Wire.write((uint8_t*)&sensorData.noiseAvgLegalMax, sizeof(float));
+            return;
+
         case CMD_GET_STATUS: {
             uint8_t status = dataReady ? 0x01 : 0x00;
-            size_t bytesWritten = Wire.write(status);
-            if (bytesWritten != 1 && config.logLevel >= NoiseSensor::LOG_ERROR) {
-                Serial.println("ERROR: Error al escribir estado en I2C");
-            }
-            break;
+            Wire.write(&status, 1);
+            return;
         }
-            
-        case CMD_RESET:
-            if (noiseSensor.isCycleComplete()) {
-                noiseSensor.resetCycle();
-                if (config.logLevel >= NoiseSensor::LOG_INFO) {
-                    Serial.println("Ciclo reseteado por comando I2C");
-                }
-            } else {
-                if (config.logLevel >= NoiseSensor::LOG_INFO) {
-                    Serial.println("WARNING: Intento de resetear ciclo que no está completo");
-                }
-            }
-            break;
-            
-        case CMD_PING:  // CMD_PING y CMD_IDENTIFY tienen el mismo valor (0x09), usar solo uno
-        {
-            // Enviar información de identificación del sensor
+
+        case CMD_GET_READY: {
+            uint8_t ready = isReady() ? 0x01 : 0x00;
+            Wire.write(&ready, 1);
+            return;
+        }
+
+        case CMD_PING: // CMD_PING y CMD_IDENTIFY comparten valor (0x09)
+        /* case CMD_IDENTIFY: */ {
             SensorIdentity identity;
             identity.sensorType = SENSOR_TYPE_NOISE;
             identity.versionMajor = VERSION_MAJOR;
             identity.versionMinor = VERSION_MINOR;
             identity.status = 0;
-            if (initialized) identity.status |= 0x01;  // Bit 0: inicializado
-            if (adcActive) identity.status |= 0x02;   // Bit 1: ADC activo
-            if (dataReady) identity.status |= 0x04;   // Bit 2: datos listos
+            if (initialized) identity.status |= 0x01;
+            if (adcActive) identity.status |= 0x02;
+            if (dataReady) identity.status |= 0x04;
             identity.i2cAddress = config.i2cAddress;
-            
-            size_t bytesWritten = Wire.write((uint8_t*)&identity, sizeof(identity));
-            if (bytesWritten != sizeof(identity) && config.logLevel >= NoiseSensor::LOG_ERROR) {
-                Serial.printf("ERROR: Error al escribir identificación en I2C (%d/%d bytes)\n", 
-                             bytesWritten, sizeof(identity));
-            }
-            break;
+            Wire.write((uint8_t*)&identity, sizeof(identity));
+            return;
         }
-            
-        case CMD_GET_READY: {
-            // Enviar estado de "ready" (1 byte: 0x01 = listo, 0x00 = no listo)
-            uint8_t ready = isReady() ? 0x01 : 0x00;
-            size_t bytesWritten = Wire.write(ready);
-            if (bytesWritten != 1 && config.logLevel >= NoiseSensor::LOG_ERROR) {
-                Serial.println("ERROR: Error al escribir estado ready en I2C");
-            }
-            break;
+
+        default: {
+            // Respuesta mínima por defecto
+            uint8_t zero = 0x00;
+            Wire.write(&zero, 1);
+            return;
         }
-            
-        default:
-            // Comando desconocido
-            if (config.logLevel >= NoiseSensor::LOG_INFO) {
-                Serial.printf("WARNING: Comando I2C desconocido: 0x%02X\n", command);
-            }
-            break;
     }
+}
+
+void NoiseSensorI2CSlave::onReceive(int numBytes) {
+    // Callback mínimo (ESP32-C3): NO Serial, NO delay, NO cálculos pesados.
+    // Solo leer el comando y guardar estado para que onRequest() responda luego.
+
+    if (numBytes <= 0) {
+        return;
+    }
+
+    int cmd = Wire.read();
+    if (cmd < 0) {
+        return;
+    }
+
+    lastCommand = static_cast<uint8_t>(cmd);
+
+    // Consumir cualquier byte extra para evitar dejar basura en el buffer
+    while (Wire.available()) {
+        (void)Wire.read();
+    }
+
+    if (lastCommand == CMD_RESET) {
+        pendingReset = true;
+    }
+}
+
+bool NoiseSensorI2CSlave::setConfig(const Config& newConfig) {
+    if (initialized) {
+        if (config.logLevel >= NoiseSensor::LOG_ERROR) {
+            Serial.println("ERROR: No se puede cambiar la configuración después de begin().");
+        }
+        return false;
+    }
+
+    if (!validateConfig(newConfig)) {
+        if (config.logLevel >= NoiseSensor::LOG_ERROR) {
+            Serial.println("ERROR: Configuración inválida, no se aplicó.");
+        }
+        return false;
+    }
+
+    config = newConfig;
+
+    NoiseSensor::Config noiseConfig;
+    noiseConfig.adcPin = config.adcPin;
+    noiseConfig.logLevel = config.logLevel;
+    noiseSensor = NoiseSensor(noiseConfig);
+
+    return true;
 }
 
 // Implementación de métodos públicos
@@ -382,3 +391,30 @@ bool NoiseSensorI2CSlave::checkADCSignal() {
     return hasValidValues;
 }
 
+bool NoiseSensorI2CSlave::validateConfig(const Config& cfg) {
+    return (cfg.i2cAddress >= MIN_I2C_ADDRESS && cfg.i2cAddress <= MAX_I2C_ADDRESS) &&
+           (cfg.updateInterval >= MIN_UPDATE_INTERVAL) &&
+           isValidGpioPin(cfg.sdaPin) &&
+           isValidGpioPin(cfg.sclPin) &&
+           isValidAdcPin(cfg.adcPin) &&
+           (cfg.sdaPin != cfg.sclPin);
+}
+
+bool NoiseSensorI2CSlave::isValidGpioPin(uint8_t pin) {
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+    return pin <= 21;
+#elif defined(ARDUINO_ARCH_ESP32) && defined(SOC_GPIO_PIN_COUNT)
+    return pin < SOC_GPIO_PIN_COUNT;
+#else
+    return true;
+#endif
+}
+
+bool NoiseSensorI2CSlave::isValidAdcPin(uint8_t pin) {
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+    // ESP32-C3 ADC1: GPIO0-4
+    return pin <= 4;
+#else
+    return true;
+#endif
+}

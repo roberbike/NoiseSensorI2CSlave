@@ -112,9 +112,15 @@ public:
      * @return true si la configuración es válida
      */
     bool isValid() const {
-        return (config.i2cAddress >= MIN_I2C_ADDRESS && config.i2cAddress <= MAX_I2C_ADDRESS) &&
-               (config.updateInterval >= MIN_UPDATE_INTERVAL);
+        return validateConfig(config);
     }
+
+    /**
+     * Actualizar configuración antes de begin()
+     * @param newConfig Nueva configuración
+     * @return true si la configuración es válida y se aplicó
+     */
+    bool setConfig(const Config& newConfig);
 
     /**
      * Verificar si el sensor está inicializado correctamente
@@ -143,17 +149,23 @@ private:
     bool initialized;
     bool adcActive;
     unsigned long lastUpdate;
+    bool instanceOwner;
+    volatile uint8_t lastCommand;
+    volatile bool pendingReset;
 
     // Callbacks I2C (deben ser estáticos o usar punteros)
     static NoiseSensorI2CSlave* instance;
-    static void onRequestStatic();
-    static void onReceiveStatic(int numBytes);
+    static void IRAM_ATTR onRequestStatic();
+    static void IRAM_ATTR onReceiveStatic(int numBytes);
     
     void onRequest();
     void onReceive(int numBytes);
     
     // Método privado para verificar señal ADC
     bool checkADCSignal();
+    static bool validateConfig(const Config& cfg);
+    static bool isValidGpioPin(uint8_t pin);
+    static bool isValidAdcPin(uint8_t pin);
 };
 
 #endif // NOISE_SENSOR_I2C_SLAVE_H

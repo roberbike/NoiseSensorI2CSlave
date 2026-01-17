@@ -33,6 +33,11 @@ void setup() {
     config.adcPin = 4;             // Pin ADC para el sensor de ruido
     config.updateInterval = 500;   // Actualizar cada 500ms (más frecuente que el básico)
     config.logLevel = NoiseSensor::LOG_NONE;  // Sin logs automáticos (control manual)
+
+    // Aplicar configuración antes de begin()
+    if (!sensor.setConfig(config)) {
+        Serial.println("ERROR: Configuración inválida, usando valores por defecto.");
+    }
     
     Serial.println("=== Ejemplo Avanzado - NoiseSensor I2C Slave ===");
     Serial.println("Configuración personalizada:");

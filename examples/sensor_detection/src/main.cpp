@@ -77,6 +77,9 @@ bool detectNoiseSensor(uint8_t address) {
     if (Wire.endTransmission() != 0) {
         return false;
     }
+
+    // ESP32-C3 (esclavo): más estable con STOP + pequeña espera antes del requestFrom()
+    delayMicroseconds(200);
     
     // Solicitar respuesta de identificación
     uint8_t bytesReceived = Wire.requestFrom(address, sizeof(SensorIdentity));
@@ -147,6 +150,8 @@ bool checkSensorReady() {
     if (Wire.endTransmission() != 0) {
         return false;
     }
+
+    delayMicroseconds(200);
     
     Wire.requestFrom(sensorAddress, 1);
     if (Wire.available() < 1) {
@@ -173,6 +178,8 @@ bool readSensorData(SensorData& data) {
     if (Wire.endTransmission() != 0) {
         return false;
     }
+
+    delayMicroseconds(200);
     
     uint8_t bytesReceived = Wire.requestFrom(sensorAddress, sizeof(SensorData));
     if (bytesReceived < sizeof(SensorData)) {
@@ -191,7 +198,8 @@ void setup() {
     Serial.println();
     
     // Inicializar I2C como maestro
-    Wire.begin();
+    Wire.setBufferSize(64);
+    Wire.begin(4, 5);
     // Opcional: configurar velocidad I2C
     // Wire.setClock(100000);  // 100kHz (por defecto)
     // Wire.setClock(400000);  // 400kHz (Fast Mode)

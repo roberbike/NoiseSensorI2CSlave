@@ -21,6 +21,9 @@ void setup() {
     
     Serial.println("=== ESP32-C3 Noise Sensor I2C Slave ===");
     
+    // Si modificas `config` aquí, recuerda aplicar antes de begin():
+    // sensor.setConfig(config);
+
     // Inicializar el sensor (configura I2C y el sensor de ruido)
     sensor.begin();
 }
