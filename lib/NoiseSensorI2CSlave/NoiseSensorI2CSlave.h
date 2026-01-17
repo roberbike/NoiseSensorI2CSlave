@@ -55,7 +55,7 @@ class NoiseSensorI2CSlave {
 public:
     // Constantes de versión (públicas para fácil acceso)
     static constexpr uint8_t VERSION_MAJOR = 1;
-    static constexpr uint8_t VERSION_MINOR = 0;
+    static constexpr uint8_t VERSION_MINOR = 1;
     static constexpr uint8_t SENSOR_TYPE_NOISE = 0x01;
     
     /**
