@@ -11,6 +11,12 @@
   ],
   "license": "GPL-3.0-or-later",
   "frameworks": "arduino",
-  "platforms": "espressif32"
+  "platforms": "espressif32",
+  "dependencies": [
+    {
+      "name": "roberbike/NoiseSensor",
+      "url": "https://github.com/roberbike/NoiseSensor.git#devel"
+    }
+  ]
 }
 
