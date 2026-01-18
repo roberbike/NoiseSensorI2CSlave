@@ -11,6 +11,19 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+// Pines y frecuencia I2C configurables desde platformio.ini (build_flags)
+#ifndef I2C_MASTER_SDA_PIN
+#define I2C_MASTER_SDA_PIN 8
+#endif
+
+#ifndef I2C_MASTER_SCL_PIN
+#define I2C_MASTER_SCL_PIN 10
+#endif
+
+#ifndef I2C_FREQ
+#define I2C_FREQ 100000
+#endif
+
 // Estructura de identificación del sensor (debe coincidir con el esclavo)
 struct SensorIdentity {
     uint8_t sensorType;       // Tipo de sensor (0x01 = Noise Sensor)
@@ -199,7 +212,9 @@ void setup() {
     
     // Inicializar I2C como maestro
     Wire.setBufferSize(64);
-    Wire.begin(4, 5);
+    if (!Wire.begin(I2C_MASTER_SDA_PIN, I2C_MASTER_SCL_PIN, I2C_FREQ)) {
+        Serial.println("ERROR: Fallo al inicializar I2C como maestro (Wire.begin).");
+    }
     // Opcional: configurar velocidad I2C
     // Wire.setClock(100000);  // 100kHz (por defecto)
     // Wire.setClock(400000);  // 400kHz (Fast Mode)

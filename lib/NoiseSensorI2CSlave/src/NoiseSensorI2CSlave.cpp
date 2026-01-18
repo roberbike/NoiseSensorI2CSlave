@@ -75,11 +75,21 @@ void NoiseSensorI2CSlave::begin() {
     }
     
     // Configurar tamaño de buffer I2C (debe hacerse antes de begin() para afectar I2C_BUFFER_LENGTH)
-    Wire.setBufferSize(64);
+    const size_t buf = Wire.setBufferSize(64);
+    if (buf < 64 && config.logLevel >= NoiseSensor::LOG_ERROR) {
+        Serial.printf("ERROR: Wire.setBufferSize(64) devolvió %u\n", static_cast<unsigned>(buf));
+        return;
+    }
 
     // Configurar I2C como esclavo
     // Firma Arduino-ESP32: begin(uint8_t slaveAddr, int sda, int scl, uint32_t frequency)
-    Wire.begin(config.i2cAddress, config.sdaPin, config.sclPin, 100000);
+    if (!Wire.begin(config.i2cAddress, config.sdaPin, config.sclPin, 100000)) {
+        if (config.logLevel >= NoiseSensor::LOG_ERROR) {
+            Serial.println("ERROR: Fallo al inicializar I2C en modo esclavo (Wire.begin).");
+        }
+        return;
+    }
+
     Wire.onRequest(onRequestStatic);  // Callback cuando el maestro solicita datos
     Wire.onReceive(onReceiveStatic);  // Callback cuando el maestro envía datos
     
@@ -128,15 +138,13 @@ void NoiseSensorI2CSlave::update() {
     noiseSensor.update();
     
     // Verificar periódicamente que el ADC sigue activo (cada 10 segundos, menos frecuente)
-    // Solo verificar si ya estaba activo, para evitar falsos positivos
     static unsigned long lastADCCheck = 0;
     unsigned long currentMillis = millis();
-    if (currentMillis - lastADCCheck >= 10000) {  // Cada 10 segundos en lugar de 5
+    if (currentMillis - lastADCCheck >= 10000) {
         lastADCCheck = currentMillis;
         bool previousState = adcActive;
         adcActive = checkADCSignal();
         
-        // Solo mostrar advertencia si cambió de activo a inactivo
         if (!adcActive && previousState && config.logLevel >= NoiseSensor::LOG_INFO) {
             Serial.println("WARNING: Se perdió la señal del ADC");
         } else if (adcActive && !previousState && config.logLevel >= NoiseSensor::LOG_INFO) {
@@ -150,7 +158,6 @@ void NoiseSensorI2CSlave::update() {
         
         const auto& measurements = noiseSensor.getMeasurements();
         
-        // Actualizar estructura de datos
         sensorData.noise = measurements.noise;
         sensorData.noiseAvg = measurements.noiseAvg;
         sensorData.noisePeak = measurements.noisePeak;
@@ -162,7 +169,6 @@ void NoiseSensorI2CSlave::update() {
         
         dataReady = true;
         
-        // Mostrar datos por Serial (opcional, para debug)
         if (config.logLevel >= NoiseSensor::LOG_INFO) {
             Serial.println("=== Datos del Sensor ===");
             Serial.printf("Actual: %.2f mV\n", sensorData.noise);
@@ -176,7 +182,6 @@ void NoiseSensorI2CSlave::update() {
             Serial.println();
         }
         
-        // Si el ciclo está completo, resetear
         if (noiseSensor.isCycleComplete()) {
             if (config.logLevel >= NoiseSensor::LOG_INFO) {
                 Serial.println("Ciclo completado - datos listos para enviar");
@@ -202,9 +207,6 @@ void IRAM_ATTR NoiseSensorI2CSlave::onReceiveStatic(int numBytes) {
 // Implementación de los callbacks
 void NoiseSensorI2CSlave::onRequest() {
     // IMPORTANTE (ESP32-C3): onRequest() debe escribir SIEMPRE al menos 1 byte
-    // y debe ser lo más corto posible (sin Serial/delay/cálculos).
-
-    // Si no está listo, devolver 1 byte 0x00 para evitar colgar el bus.
     if (!initialized) {
         uint8_t zero = 0x00;
         Wire.write(&zero, 1);
@@ -271,7 +273,6 @@ void NoiseSensorI2CSlave::onRequest() {
         }
 
         default: {
-            // Respuesta mínima por defecto
             uint8_t zero = 0x00;
             Wire.write(&zero, 1);
             return;
@@ -280,9 +281,6 @@ void NoiseSensorI2CSlave::onRequest() {
 }
 
 void NoiseSensorI2CSlave::onReceive(int numBytes) {
-    // Callback mínimo (ESP32-C3): NO Serial, NO delay, NO cálculos pesados.
-    // Solo leer el comando y guardar estado para que onRequest() responda luego.
-
     if (numBytes <= 0) {
         return;
     }
@@ -294,7 +292,6 @@ void NoiseSensorI2CSlave::onReceive(int numBytes) {
 
     lastCommand = static_cast<uint8_t>(cmd);
 
-    // Consumir cualquier byte extra para evitar dejar basura en el buffer
     while (Wire.available()) {
         (void)Wire.read();
     }
@@ -329,65 +326,32 @@ bool NoiseSensorI2CSlave::setConfig(const Config& newConfig) {
     return true;
 }
 
-// Implementación de métodos públicos
 bool NoiseSensorI2CSlave::isReady() const {
-    // Está listo si está inicializado Y el ADC está activo
     return initialized && adcActive;
 }
 
-// Implementación de método privado para verificar señal ADC
 bool NoiseSensorI2CSlave::checkADCSignal() {
-    // Mejor estrategia: usar los datos del NoiseSensor en lugar de leer directamente el ADC
-    // Si el NoiseSensor está funcionando y generando datos, significa que el ADC está activo
-    
-    // Verificar que el NoiseSensor tiene datos válidos
     const auto& measurements = noiseSensor.getMeasurements();
     
-    // El ADC está activo si:
-    // 1. El sensor tiene datos (noise > 0 o hay variación en los valores)
-    // 2. Los valores no están todos en cero (lo que indicaría problema)
-    // 3. Hay variación en las lecturas (señal dinámica)
-    
-    // Leer algunas muestras rápidas para verificar variación
     const int numSamples = 5;
-    int lastValue = 0;
-    bool hasVariation = false;
     bool hasValidValues = false;
     
     for (int i = 0; i < numSamples; i++) {
         int adcValue = analogRead(config.adcPin);
-        
-        // Verificar que no está en valores extremos que indicarían problema
-        // 0 o 4095 constantemente indicarían conexión abierta o cortocircuito
         if (adcValue > 0 && adcValue < 4095) {
             hasValidValues = true;
         }
-        
-        // Verificar variación (señal dinámica)
-        if (i > 0 && abs(adcValue - lastValue) > 5) {
-            hasVariation = true;
-        }
-        
-        lastValue = adcValue;
-        delay(5);  // Delay más corto para no bloquear tanto
+        delay(5);
     }
     
-    // También verificar que el NoiseSensor tiene datos válidos
-    // Si el NoiseSensor está generando datos, el ADC definitivamente está activo
     bool noiseSensorActive = (measurements.noise > 0.0 || 
                               measurements.noiseAvg > 0.0 ||
                               measurements.cycles > 0);
     
-    // El ADC está activo si:
-    // 1. El NoiseSensor tiene datos (más confiable) O
-    // 2. Hay valores válidos en el ADC (no en extremos) Y hay variación
-    // Esto prioriza los datos del NoiseSensor sobre la lectura directa del ADC
     if (noiseSensorActive) {
-        return true;  // Si el NoiseSensor tiene datos, el ADC está activo
+        return true;
     }
     
-    // Si el NoiseSensor no tiene datos aún, verificar el ADC directamente
-    // pero ser más permisivo: solo necesita valores válidos (no extremos)
     return hasValidValues;
 }
 
@@ -418,3 +382,4 @@ bool NoiseSensorI2CSlave::isValidAdcPin(uint8_t pin) {
     return true;
 #endif
 }
+

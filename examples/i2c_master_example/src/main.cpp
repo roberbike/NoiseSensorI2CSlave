@@ -10,6 +10,19 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+// Pines y frecuencia I2C configurables desde platformio.ini (build_flags)
+#ifndef I2C_MASTER_SDA_PIN
+#define I2C_MASTER_SDA_PIN 8
+#endif
+
+#ifndef I2C_MASTER_SCL_PIN
+#define I2C_MASTER_SCL_PIN 10
+#endif
+
+#ifndef I2C_FREQ
+#define I2C_FREQ 100000
+#endif
+
 // Dirección I2C del esclavo (ESP32-C3 con sensor de ruido)
 #define I2C_SLAVE_ADDRESS 0x08
 
@@ -114,8 +127,9 @@ void setup() {
     Wire.setBufferSize(64);
 
     // Inicializar I2C como maestro
-    // IMPORTANTE: Ajusta pines si tu placa no usa los pines por defecto
-    Wire.begin(4, 5);
+    if (!Wire.begin(I2C_MASTER_SDA_PIN, I2C_MASTER_SCL_PIN, I2C_FREQ)) {
+        Serial.println("ERROR: Fallo al inicializar I2C como maestro (Wire.begin).");
+    }
     // Opcional: configurar velocidad I2C (por defecto 100kHz)
     // Wire.setClock(100000);  // 100kHz
     // Wire.setClock(400000);  // 400kHz (Fast Mode)

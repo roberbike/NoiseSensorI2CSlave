@@ -1,37 +1,52 @@
 #include <Arduino.h>
 #include "NoiseSensorI2CSlave.h"
 
-// Configuración del sensor I2C esclavo
-// Los valores por defecto están definidos en la estructura Config
-// Puedes personalizarlos aquí si es necesario:
-NoiseSensorI2CSlave::Config config;
-// config.i2cAddress = 0x08;      // Dirección I2C del esclavo (por defecto: 0x08)
-// config.sdaPin = 8;             // Pin SDA (por defecto: 8)
-// config.sclPin = 10;            // Pin SCL (por defecto: 10)
-// config.adcPin = 4;             // Pin ADC (por defecto: 4)
-// config.updateInterval = 1000;   // Intervalo en ms (por defecto: 1000)
-// config.logLevel = NoiseSensor::LOG_INFO; // Nivel de log (por defecto: LOG_INFO)
+#ifndef I2C_ADDRESS
+#define I2C_ADDRESS 0x08
+#endif
 
-// Crear instancia del sensor I2C esclavo
+#ifndef I2C_SDA_PIN
+#define I2C_SDA_PIN 8
+#endif
+
+#ifndef I2C_SCL_PIN
+#define I2C_SCL_PIN 10
+#endif
+
+#ifndef NOISE_ADC_PIN
+#define NOISE_ADC_PIN 4
+#endif
+
+NoiseSensorI2CSlave::Config config;
 NoiseSensorI2CSlave sensor(config);
 
 void setup() {
     Serial.begin(115200);
     delay(1000);
-    
-    Serial.println("=== ESP32-C3 Noise Sensor I2C Slave ===");
-    
-    // Si modificas `config` aquí, recuerda aplicar antes de begin():
-    // sensor.setConfig(config);
 
-    // Inicializar el sensor (configura I2C y el sensor de ruido)
+    Serial.println("=== NoiseSensor I2C Slave (ESP32) ===");
+    Serial.printf("I2C addr: 0x%02X | SDA=%d | SCL=%d | ADC=%d\n",
+                  static_cast<unsigned>(I2C_ADDRESS),
+                  static_cast<int>(I2C_SDA_PIN),
+                  static_cast<int>(I2C_SCL_PIN),
+                  static_cast<int>(NOISE_ADC_PIN));
+
+    config.i2cAddress = static_cast<uint8_t>(I2C_ADDRESS);
+    config.sdaPin = static_cast<uint8_t>(I2C_SDA_PIN);
+    config.sclPin = static_cast<uint8_t>(I2C_SCL_PIN);
+    config.adcPin = static_cast<uint8_t>(NOISE_ADC_PIN);
+    config.updateInterval = 1000;
+    config.logLevel = NoiseSensor::LOG_INFO;
+
+    if (!sensor.setConfig(config)) {
+        Serial.println("ERROR: Configuración inválida (setConfig falló). Revisa pines/dirección.");
+    }
+
     sensor.begin();
 }
 
 void loop() {
-    // Actualizar el sensor (maneja I2C y actualización de datos)
     sensor.update();
-    
-    delay(10); // Pequeño delay para evitar saturar el loop
+    delay(10);
 }
 

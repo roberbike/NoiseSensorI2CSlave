@@ -2,7 +2,7 @@
 
 [![PlatformIO](https://img.shields.io/badge/platform-ESP32-blue.svg)](https://platformio.org/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-orange.svg)](https://github.com/TU_USUARIO/NoiseSensorI2CSlave/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-orange.svg)](https://github.com/roberbike/ruido_i2c_slave/releases)
 
 Librería para ESP32 que convierte un sensor de ruido en un dispositivo esclavo I2C. Permite leer datos del sensor de ruido, usando la librería NoiseSensor y enviarlos por I2C cuando otro ESP32 (maestro) los solicita.
 
@@ -46,32 +46,34 @@ VCC           <---------->  3.3V
 
 ## Instalación
 
-### Desde GitHub (Recomendado)
+### Como Proyecto PlatformIO (firmware listo para subir)
 
-Agrega la librería directamente desde GitHub en tu `platformio.ini`:
+Este repositorio es un **proyecto PlatformIO** listo para compilar/subir a:
+- **ESP32-C3**
+- **ESP32-S2**
+- **ESP32-S3**
 
-```ini
-lib_deps = 
-    roberbike/NoiseSensor@^1.0.1
-    https://github.com/roberbike/NoiseSensorI2CSlave.git
+La librería `NoiseSensorI2CSlave` viene incluida como librería local en `lib/NoiseSensorI2CSlave/` y el firmware está en `src/main.cpp`.
+
+#### Compilar / Subir
+
+```bash
+# Compilar
+pio run -e esp32c3
+
+# Subir
+pio run -e esp32c3 -t upload
+
+# Monitor
+pio device monitor
 ```
 
+#### Pines usados (por defecto)
 
-### Como Librería Local
+- **ADC**: GPIO **4**
+- **I2C**: SDA GPIO **8**, SCL GPIO **10**
 
-La librería está incluida en el directorio `lib/NoiseSensorI2CSlave/`. PlatformIO la detectará automáticamente.
-
-### Copiar Manualmente
-
-Si prefieres copiar la librería manualmente:
-
-1. Copia el directorio `lib/NoiseSensorI2CSlave/` a tu proyecto
-2. Asegúrate de tener la dependencia en `platformio.ini`:
-
-```ini
-lib_deps = 
-    roberbike/NoiseSensor@^1.0.1
-```
+Puedes cambiar pines/dirección desde `platformio.ini` (build_flags) sin tocar el código.
 
 ## Uso Básico
 

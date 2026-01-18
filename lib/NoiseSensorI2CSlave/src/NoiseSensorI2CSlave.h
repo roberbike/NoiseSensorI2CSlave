@@ -111,9 +111,7 @@ public:
      * Validar la configuración actual
      * @return true si la configuración es válida
      */
-    bool isValid() const {
-        return validateConfig(config);
-    }
+    bool isValid() const { return validateConfig(config); }
 
     /**
      * Actualizar configuración antes de begin()

@@ -16,7 +16,7 @@
 
 ### 1. **INFO: Limitación de instancia única**
 
-**Ubicación:** `lib/NoiseSensorI2CSlave/NoiseSensorI2CSlave.cpp` y `NoiseSensorI2CSlave.h`
+**Ubicación:** `lib/NoiseSensorI2CSlave/src/NoiseSensorI2CSlave.cpp` y `lib/NoiseSensorI2CSlave/src/NoiseSensorI2CSlave.h`
 
 **Estado:** Resuelto. Solo la primera instancia se registra como propietaria de callbacks y se bloquea el `begin()` en instancias adicionales.
 
@@ -24,7 +24,7 @@
 
 ### 2. **INFO: Overflow en `millis()`**
 
-**Ubicación:** `lib/NoiseSensorI2CSlave/NoiseSensorI2CSlave.cpp:update()`
+**Ubicación:** `lib/NoiseSensorI2CSlave/src/NoiseSensorI2CSlave.cpp:update()`
 
 **Estado:** Correcto. El uso de aritmética sin signo maneja el overflow de forma segura.
 
